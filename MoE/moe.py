@@ -5,6 +5,8 @@ from .expert import Expert
 from .router import NoisyTopkRouter
 from .blocks import Head, MultiHeadAttention
 from .const import *
+from torch.nn import init
+
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 class SparseMoE(nn.Module):
@@ -111,3 +113,9 @@ class SparseMoELanguageModel(nn.Module):
             # append sampled index to the running sequence
             idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
         return idx
+    
+
+
+def kaiming_init_weights(m):
+    if isinstance (m, (nn.Linear)):
+        init.kaiming_normal_(m.weight)
