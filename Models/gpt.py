@@ -13,10 +13,9 @@ block_size = 8
 batch_size = 8
 eval_iters = 10000
 n_emb = 368
-n_layers = 4
-n_head = 4
+n_layers = 3
+n_head = 12
 dropout = 0.1
-
 
 class Head(nn.Module):
     def __init__(self, head_size):
@@ -33,7 +32,8 @@ class Head(nn.Module):
         k = self.key(x)
         q = self.query(x)
 
-        wei = q @ k.transpose(-2, -1) * k.shape[-1]**-0.5   # (B, T, hs) @ (B, hs, T) -> (B, T, T)
+        #wei = q @ k.transpose(-2, -1) * k.shape[-1]**-0.5   # (B, T, hs) @ (B, hs, T) -> (B, T, T)
+        wei = q @ k.transpose(-2,-1) * C**-0.5 
         wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf')) # (B, T, T)
         wei = F.softmax(wei, dim=-1)
         wei = self.dropout(wei)
