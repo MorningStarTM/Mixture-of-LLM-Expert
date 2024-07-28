@@ -1,31 +1,39 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from .gating import Gating
+from .expert import Expert
+from .router import NoisyTopkRouter
 
 
-class MoE(nn.Module):
-    def __init__(self, trained_experts) -> None:
-        super(MoE, self).__init__()
-        self.experts = nn.ModuleList(trained_experts)
-
-        for expert in self.experts:
-            for param in expert.parameters():
-                param.requires_grad = False
-        
-        num_experts = len(trained_experts)
-
-        input_dim = trained_experts[0].layer1.in_features
-        self.gating = Gating(input_dim, num_experts)
+class SparseMoE(nn.Module):
+    def __init__(self, n_embed, num_experts, top_k):
+        super(SparseMoE, self).__init__()
+        self.router = NoisyTopkRouter(n_embed, num_experts, top_k)
+        self.experts = nn.ModuleList([Expert(n_embed) for _ in range(num_experts)])
+        self.top_k = top_k
 
     def forward(self, x):
-        weights = self.gating(x)
+        gating_output, indices = self.router(x)
+        final_output = torch.zeros_like(x)
 
-        outputs = torch.stack(
-            [expert(x) for expert in self.experts], dim=2
-        )
+        # Reshape inputs for batch processing
+        flat_x = x.view(-1, x.size(-1))
+        flat_gating_output = gating_output.view(-1, gating_output.size(-1))
 
-        weights = weights.unsqueeze(1).expand_as(outputs)
+        # Process each expert in parallel
+        for i, expert in enumerate(self.experts):
+            # Create a mask for the inputs where the current expert is in top-k
+            expert_mask = (indices == i).any(dim=-1)
+            flat_mask = expert_mask.view(-1)
 
-        return torch.sum(outputs * weights, dim=2)
+            if flat_mask.any():
+                expert_input = flat_x[flat_mask]
+                expert_output = expert(expert_input)
+
+                # Extract and apply gating scores
+                gating_scores = flat_gating_output[flat_mask, i].unsqueeze(1)
+                weighted_output = expert_output * gating_scores
+
+                # Update final output additively by indexing and adding
+                final_output[expert_mask] += weighted_output.squeeze(1)
+
+        return final_output
