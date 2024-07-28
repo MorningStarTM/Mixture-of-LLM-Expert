@@ -10,7 +10,7 @@ from torch.nn import init
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 class SparseMoE(nn.Module):
-    def __init__(self):
+    def __init__(self, n_embed, num_experts, top_k):
         super(SparseMoE, self).__init__()
         self.router = NoisyTopkRouter(n_embed, num_experts, top_k)
         self.experts = nn.ModuleList([Expert(n_embed) for _ in range(num_experts)])
@@ -65,7 +65,7 @@ class Block(nn.Module):
 
 class SparseMoELanguageModel(nn.Module):
 
-    def __init__(self, vocab_size, n_embed, block_size):
+    def __init__(self, vocab_size):
         super().__init__()
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
