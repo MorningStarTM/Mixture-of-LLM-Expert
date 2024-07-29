@@ -1,1 +1,2 @@
 from .tokenizer import WordLevelTokenizer, LetterLevelTokenizer
+from .data_loader import extract_and_save_text
